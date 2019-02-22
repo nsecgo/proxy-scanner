@@ -1,21 +1,22 @@
 package models
 
 import (
-	_ "github.com/go-sql-driver/mysql"
-	"sync"
-	"io/ioutil"
 	"database/sql"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/mattn/go-sqlite3"
+	"io/ioutil"
 	"log"
-	"time"
 	"strconv"
-	"sync/atomic"
 	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 type HttpMode uint8
 
 const (
-	None            HttpMode = iota
+	None HttpMode = iota
 	TransparentHttp
 	AnonymousHttp
 	DistortingHttp
@@ -34,8 +35,6 @@ type HttpProxy struct {
 type SocksProxy struct {
 	Ip        string
 	Port      uint16
-	Socks4    bool
-	Socks4a   bool
 	Socks5    bool
 	LastAlive time.Time
 	KeepAlive bool
@@ -50,40 +49,68 @@ var insertOrUpdateSocksStmt *sql.Stmt
 var disableHttpStmt *sql.Stmt
 var disableSocksStmt *sql.Stmt
 
-func Init(dsn string) {
-	//must set parseTime=true
-	if strings.Contains(dsn, "?") {
-		if !strings.Contains(dsn, "parseTime=true") {
-			dsn += "&parseTime=true"
+func Init(dbType, dsn string) {
+	if dbType == "mysql" {
+		//must set parseTime=true
+		if strings.Contains(dsn, "?") {
+			if !strings.Contains(dsn, "parseTime=true") {
+				dsn += "&parseTime=true"
+			}
+		} else {
+			dsn += "?parseTime=true"
+		}
+		var err error
+		db, err = sql.Open("mysql", dsn)
+		if err != nil {
+			log.Fatal(err)
+		}
+		db.SetMaxIdleConns(10)
+
+		insertOrUpdateHttpStmt, err = db.Prepare(`INSERT INTO http_proxies(ip,port,mode,connect,last_alive,keep_alive) VALUES (?,?,?,?,?,?)
+on duplicate key update port=?,mode=?,connect=?,last_alive=?,keep_alive=?`)
+		if err != nil {
+			log.Fatal(err)
+		}
+		insertOrUpdateSocksStmt, err = db.Prepare(`INSERT INTO socks_proxies(ip,port,socks5,last_alive,keep_alive) VALUES (?,?,?,?,?)
+on duplicate key update port=?,socks5=?,last_alive=?,keep_alive=?`)
+		if err != nil {
+			log.Fatal(err)
+		}
+		disableHttpStmt, err = db.Prepare("update http_proxies set keep_alive=FALSE where ip=?")
+		if err != nil {
+			log.Fatal(err)
+		}
+		disableSocksStmt, err = db.Prepare("update socks_proxies set keep_alive=FALSE where ip=?")
+		if err != nil {
+			log.Fatal(err)
 		}
 	} else {
-		dsn += "?parseTime=true"
-	}
-	var err error
-	db, err = sql.Open("mysql", dsn)
-	if err != nil {
-		log.Fatal(err)
-	}
-	db.SetMaxIdleConns(10)
+		var err error
+		db, err = sql.Open("sqlite3", dsn)
+		if err != nil {
+			log.Fatal(err)
+		}
 
-	insertOrUpdateHttpStmt, err = db.Prepare(`INSERT INTO http_proxies(ip,port,mode,connect,last_alive,keep_alive) VALUES (?,?,?,?,?,?)
-on duplicate key update port=?,mode=?,connect=?,last_alive=?,keep_alive=?`)
-	if err != nil {
-		log.Fatal(err)
+		insertOrUpdateHttpStmt, err = db.Prepare(`INSERT INTO http_proxies(ip,port,mode,connect,last_alive,keep_alive) VALUES (?,?,?,?,?,?)
+ON CONFLICT(ip) DO UPDATE SET port=?,mode=?,connect=?,last_alive=?,keep_alive=?`)
+		if err != nil {
+			log.Fatal(err)
+		}
+		insertOrUpdateSocksStmt, err = db.Prepare(`INSERT INTO socks_proxies(ip,port,socks5,last_alive,keep_alive) VALUES (?,?,?,?,?)
+ON CONFLICT(ip) DO UPDATE SET port=?,socks5=?,last_alive=?,keep_alive=?`)
+		if err != nil {
+			log.Fatal(err)
+		}
+		disableHttpStmt, err = db.Prepare("update http_proxies set keep_alive=FALSE where ip=?")
+		if err != nil {
+			log.Fatal(err)
+		}
+		disableSocksStmt, err = db.Prepare("update socks_proxies set keep_alive=FALSE where ip=?")
+		if err != nil {
+			log.Fatal(err)
+		}
 	}
-	insertOrUpdateSocksStmt, err = db.Prepare(`INSERT INTO socks_proxies(ip,port,socks4,socks4a,socks5,last_alive,keep_alive) VALUES (?,?,?,?,?,?,?)
-on duplicate key update port=?,socks4=?,socks4a=?,socks5=?,last_alive=?,keep_alive=?`)
-	if err != nil {
-		log.Fatal(err)
-	}
-	disableHttpStmt, err = db.Prepare("update http_proxies set keep_alive=FALSE where ip=?")
-	if err != nil {
-		log.Fatal(err)
-	}
-	disableSocksStmt, err = db.Prepare("update socks_proxies set keep_alive=FALSE where ip=?")
-	if err != nil {
-		log.Fatal(err)
-	}
+
 }
 func (p *HttpProxy) InsertOrUpdate(reCheck bool) {
 	now := time.Now()
@@ -102,10 +129,10 @@ func (p *HttpProxy) InsertOrUpdate(reCheck bool) {
 func (p *SocksProxy) InsertOrUpdate(reCheck bool) {
 	now := time.Now()
 
-	if p.Socks4 || p.Socks4a || p.Socks5 {
+	if p.Socks5 {
 		p.KeepAlive = true
 		p.LastAlive = now
-		_, err := insertOrUpdateSocksStmt.Exec(p.Ip, p.Port, p.Socks4, p.Socks4a, p.Socks5, p.LastAlive, p.KeepAlive, p.Port, p.Socks4, p.Socks4a, p.Socks5, p.LastAlive, p.KeepAlive)
+		_, err := insertOrUpdateSocksStmt.Exec(p.Ip, p.Port, p.Socks5, p.LastAlive, p.KeepAlive, p.Port, p.Socks5, p.LastAlive, p.KeepAlive)
 		if err != nil {
 			log.Println(err)
 			return

@@ -66,8 +66,6 @@ func proxyCheck(addr string) {
 	}
 	if tp == "" || tp == "socks" {
 		var socksProxy models.SocksProxy
-		socksProxy.Socks4 = socks4(addr)
-		socksProxy.Socks4a = socks4a(addr)
 		socksProxy.Socks5 = socks5(addr)
 		socksProxy.Ip = ip
 		socksProxy.Port = port
@@ -124,29 +122,6 @@ func https(addr string) bool {
 			break
 		}
 	}
-	return false
-}
-func socks4(addr string) bool {
-	//conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
-	//if err != nil {
-	//	return false
-	//}
-	//defer conn.Close()
-	//conn.SetDeadline(time.Now().Add(10 * time.Second))
-	//conn.Write([]byte{0x4,0x1,})
-	//fmt.Println(n, err)
-	//buf := make([]byte, 1000)
-	//n, err = conn.Read(buf)
-	//fmt.Println(11111, buf[:n], n, err)
-	//
-	//hello = []byte("GET / HTTP/1.1\r\nHost: nsec.ml\r\nConnection: close\r\n\r\n")
-	//
-	//conn.Write(hello)
-	//n, err = conn.Read(buf)
-	//fmt.Println(22222, buf[:n], n, err)
-	return false
-}
-func socks4a(addr string) bool {
 	return false
 }
 func socks5(addr string) bool {

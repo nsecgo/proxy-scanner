@@ -7,8 +7,8 @@
 <body>
 <pre>
 {{range $key,$val := .ScannerTaskStat}}
-    {{$key}}
-    {{$val}}
+    进度:{{$key}}
+    已发现:{{$val}}
 {{end}}
     WaitCheckCount:{{.WaitCheckCount}}
 </pre>
