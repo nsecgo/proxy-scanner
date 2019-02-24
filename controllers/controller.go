@@ -37,29 +37,25 @@ func Header(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer conn.Close()
-
-	var proxyMode models.HttpMode
-	forward := r.Header.Get("X-Forwarded-For")
-	via := r.Header.Get("Via")
-	if len(forward) == 0 && len(via) == 0 {
-		proxyMode = models.EliteHttp
-	} else if strings.Contains(forward, worker.ServerAddr) || strings.Contains(via, worker.ServerAddr) {
-		proxyMode = models.TransparentHttp
-	} else if strings.Contains(forward, r.RemoteAddr[:strings.Index(r.RemoteAddr, ":")]) {
-		proxyMode = models.AnonymousHttp
-	} else {
-		proxyMode = models.DistortingHttp
+	var status = models.Anonymous
+	for _, values := range r.Header {
+		for _, value := range values {
+			if strings.Contains(value, worker.ServerAddr) {
+				status = models.Transparent
+				goto echo
+			}
+		}
 	}
+echo:
 	j, _ := json.Marshal(r.Header)
 	// begin#ProxyMode#end
-	mode := strconv.Itoa(int(proxyMode))
+	mode := strconv.Itoa(int(status))
 	bufrw.Write(append([]byte("HTTP/1.0 200 OK\r\n"+
 		"Warning: begin#"+mode+"#end\r\n"+
 		"Set-Cookie: m=begin#"+mode+"#end\r\n\r\n"), j...))
 	bufrw.Flush()
 }
 func Status(w http.ResponseWriter, r *http.Request) {
-
 	var s = make(map[string][]interface{})
 	worker.ScannerTaskStat.Range(func(key, value interface{}) bool {
 		s[key.(string)] = value.([]interface{})

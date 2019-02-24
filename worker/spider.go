@@ -1,21 +1,21 @@
 package worker
 
 import (
-	"log"
-	"net/http"
 	"bufio"
-	"strings"
-	"net"
-	"strconv"
-	"github.com/PuerkitoBio/goquery"
-	"time"
-	"github.com/nsecgo/proxy-scanner/models"
-	"encoding/json"
-	"io/ioutil"
-	"sync/atomic"
-	"sync"
 	"bytes"
+	"encoding/json"
 	"fmt"
+	"github.com/PuerkitoBio/goquery"
+	"github.com/nsecgo/proxy-scanner/models"
+	"io/ioutil"
+	"log"
+	"net"
+	"net/http"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 //www.proxyrotator.com/free-proxy-list/

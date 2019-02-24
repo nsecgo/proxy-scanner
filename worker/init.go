@@ -19,7 +19,7 @@ type spider struct {
 }
 
 var (
-	scannerTaskch   = make(chan struct{}, 3)
+	scannerTaskch   = make(chan struct{})
 	ScannerTaskStat sync.Map
 )
 var (

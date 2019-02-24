@@ -26,7 +26,7 @@ func inspector() {
 func regularCheck() {
 	for {
 		time.Sleep(1 * time.Hour)
-		models.SendToCheck(waitCheckch, &WaitCheckCount)
+		models.SendToReCheck(waitCheckch, &WaitCheckCount)
 	}
 }
 func proxyCheck(addr string) {
@@ -57,32 +57,32 @@ func proxyCheck(addr string) {
 
 	if tp == "" || tp == "http" {
 		var httpProxy models.HttpProxy
-		httpProxy.Mode = httpMode(addr)
-		httpProxy.Connect = https(addr)
+		httpProxy.Status = tryGet(addr)
+		httpProxy.Connect = tryConnect(addr)
 		httpProxy.Ip = ip
 		httpProxy.Port = port
 		//更新到数据库
 		httpProxy.InsertOrUpdate(tp == "http")
 	}
-	if tp == "" || tp == "socks" {
+	if tp == "" || tp == "socks5" {
 		var socksProxy models.SocksProxy
 		socksProxy.Socks5 = socks5(addr)
 		socksProxy.Ip = ip
 		socksProxy.Port = port
 		//更新到数据库
-		socksProxy.InsertOrUpdate(tp == "socks")
+		socksProxy.InsertOrUpdate(tp == "socks5")
 	}
 }
-func httpMode(addr string) models.HttpMode {
+func tryGet(addr string) models.Status {
 	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
 	if err != nil {
-		return models.None
+		return models.Close
 	}
 	defer conn.Close()
 	conn.SetDeadline(time.Now().Add(10 * time.Second))
 	_, err = conn.Write([]byte("GET http://" + ServerAddr + ":" + ServerPort + "/header HTTP/1.0\r\nHost: " + ServerAddr + ":" + ServerPort + "\r\nProxy-Connection: close\r\nConnection: close\r\n\r\n"))
 	if err != nil {
-		return models.None
+		return models.Close
 	}
 	reader := bufio.NewReader(conn)
 	for i := 0; i < 6; i++ {
@@ -90,7 +90,7 @@ func httpMode(addr string) models.HttpMode {
 		if i := strings.Index(line, "begin#"); i != -1 {
 			if l := strings.Index(line, "#end"); l != -1 {
 				if m, err := strconv.Atoi(line[i+6 : l]); err == nil {
-					return models.HttpMode(m)
+					return models.Status(m)
 				}
 			}
 			log.Println("return header addr:", addr, line)
@@ -99,9 +99,9 @@ func httpMode(addr string) models.HttpMode {
 			break
 		}
 	}
-	return models.None
+	return models.Close
 }
-func https(addr string) bool {
+func tryConnect(addr string) bool {
 	conn, err := net.DialTimeout("tcp", addr, 10*time.Second)
 	if err != nil {
 		return false
